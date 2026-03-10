@@ -1,7 +1,9 @@
 FROM node:18-slim
 WORKDIR /app
-COPY package.json .
+# Build context is the solar-scada root (set in fly.toml)
+COPY backend/package.json .
 RUN npm install --production
-COPY server.js .
-# dashboard is mounted at runtime via docker-compose volume
+COPY backend/server.js .
+COPY dashboard ./dashboard
+EXPOSE 3000
 CMD ["node", "server.js"]

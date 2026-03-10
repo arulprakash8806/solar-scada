@@ -1,0 +1,23 @@
+app = "solar-grafana"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  GF_SECURITY_ADMIN_USER = "admin"
+  GF_SECURITY_ADMIN_PASSWORD = "solar123"
+  GF_AUTH_ANONYMOUS_ENABLED = "true"
+  GF_AUTH_ANONYMOUS_ORG_ROLE = "Viewer"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

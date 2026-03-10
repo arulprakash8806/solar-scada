@@ -1,0 +1,22 @@
+app = "solar-backend"
+primary_region = "sin"
+
+[build]
+  # Build context is the solar-scada root so we can access ../dashboard
+  context = ".."
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  PROMETHEUS_URL = "http://solar-prometheus.internal:9090"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
