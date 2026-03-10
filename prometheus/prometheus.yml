@@ -5,4 +5,4 @@ global:
 scrape_configs:
   - job_name: 'solar_farm'
     static_configs:
-      - targets: ['solar-exporter.internal:8000']
+      - targets: ['exporter.internal:8000']

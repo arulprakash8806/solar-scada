@@ -4,6 +4,6 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://solar-prometheus.internal:9090
+    url: http://prometheus-long-frost-4688.internal:9090
     isDefault: true
     editable: true
