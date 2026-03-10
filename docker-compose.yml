@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  # ─── Python Prometheus Exporter ───────────────────────────────────────────
+  solar-exporter:
+    build: ./exporter
+    container_name: solar-exporter
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - solar-net
+
+  # ─── Prometheus ───────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+    networks:
+      - solar-net
+    depends_on:
+      - solar-exporter
+
+  # ─── Grafana ──────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=solar123
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/solar_farm.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - solar-net
+    depends_on:
+      - prometheus
+
+  # ─── Node.js API Backend ──────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: solar-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+    volumes:
+      - ./dashboard:/app/dashboard:ro
+    restart: unless-stopped
+    networks:
+      - solar-net
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  solar-net:
+    driver: bridge

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker --version)",
+      "Bash(docker compose:*)",
+      "Bash(docker-compose --version)",
+      "Bash(ls /workspace/group/solar-scada/docker-compose*)",
+      "Bash(apt-get update:*)",
+      "Bash(apt-get install:*)",
+      "Bash(sudo apt-get:*)",
+      "Read(//var/run/**)",
+      "Read(//run/**)"
+    ]
+  }
+}
