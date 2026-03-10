@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Farm SCADA</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0e1a;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* Top Bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #111828; padding: 12px 24px; border-bottom: 2px solid #00aaff33;
+  }
+  .topbar h1 { font-size: 1.4rem; color: #00aaff; letter-spacing: 1px; }
+  .topbar .clock { color: #888; font-size: 0.95rem; font-family: monospace; }
+  .status-badge {
+    padding: 4px 14px; border-radius: 12px; font-weight: 700; font-size: 0.85rem;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .status-online { background: #00ff8822; color: #00ff88; border: 1px solid #00ff8844; }
+  .status-fault  { background: #ff444422; color: #ff4444; border: 1px solid #ff444444; }
+
+  /* Fault Banner */
+  .fault-banner {
+    display: none; background: #ff2222; color: #fff; text-align: center;
+    padding: 10px; font-weight: 700; font-size: 1.1rem; animation: pulse 1.5s infinite;
+  }
+  .fault-banner.visible { display: block; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  /* Layout */
+  .container { padding: 16px 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* KPI Row */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+  .kpi-card {
+    background: #151c2e; border-radius: 10px; padding: 18px; text-align: center;
+    border: 1px solid #1e2a45;
+  }
+  .kpi-card .label { color: #888; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .kpi-card .value { font-size: 2rem; font-weight: 700; color: #00ff88; font-family: monospace; }
+  .kpi-card .unit  { font-size: 0.85rem; color: #666; }
+  .kpi-card.blue .value { color: #00aaff; }
+
+  /* Inverter Grid */
+  .section-title { color: #00aaff; font-size: 1rem; margin: 18px 0 10px; text-transform: uppercase; letter-spacing: 2px; }
+  .inverter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+  .inv-card {
+    background: #151c2e; border-radius: 10px; padding: 14px; border: 1px solid #1e2a45;
+    position: relative;
+  }
+  .inv-card .inv-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .inv-card .inv-name { font-weight: 700; font-size: 0.95rem; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .status-dot.ok    { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+  .status-dot.fault { background: #ff4444; box-shadow: 0 0 6px #ff4444; }
+  .inv-card .inv-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
+  .inv-card .inv-row .lbl { color: #888; }
+  .inv-card .inv-row .val { font-family: monospace; color: #e0e0e0; }
+  .power-bar { height: 4px; border-radius: 2px; background: #1e2a45; margin-top: 8px; overflow: hidden; }
+  .power-bar .fill { height: 100%; background: linear-gradient(90deg, #00aaff, #00ff88); border-radius: 2px; transition: width 0.5s; }
+
+  /* Bottom Row */
+  .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+  .panel {
+    background: #151c2e; border-radius: 10px; padding: 18px; border: 1px solid #1e2a45;
+  }
+  .panel h3 { color: #00aaff; font-size: 0.9rem; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .weather-row { display: flex; justify-content: space-around; text-align: center; }
+  .weather-item .w-val { font-size: 1.5rem; font-weight: 700; color: #00ff88; font-family: monospace; }
+  .weather-item .w-lbl { color: #888; font-size: 0.75rem; text-transform: uppercase; }
+
+  /* Chart */
+  .chart-container { position: relative; height: 220px; }
+
+  /* Footer */
+  .footer {
+    display: flex; justify-content: space-between; align-items: center; padding: 12px 0;
+    border-top: 1px solid #1e2a45; margin-top: 10px; font-size: 0.8rem; color: #555;
+  }
+  .footer a {
+    color: #00aaff; text-decoration: none; padding: 6px 16px;
+    border: 1px solid #00aaff44; border-radius: 6px; font-size: 0.85rem;
+  }
+  .footer a:hover { background: #00aaff22; }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .inverter-grid { grid-template-columns: repeat(2, 1fr); }
+    .bottom-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>&#9728;&#65039; Solar Farm SCADA</h1>
+  <span class="clock" id="clock">--:--:--</span>
+  <span class="status-badge status-online" id="statusBadge">ONLINE</span>
+</div>
+
+<div class="fault-banner" id="faultBanner">&#9889; FAULT DETECTED — Inverter(s) reporting failure</div>
+
+<div class="container">
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="label">Total Power</div>
+      <div class="value" id="kpiPower">--</div>
+      <div class="unit">kW</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="label">Daily Energy</div>
+      <div class="value" id="kpiEnergy">--</div>
+      <div class="unit">kWh</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Irradiance</div>
+      <div class="value" id="kpiIrradiance">--</div>
+      <div class="unit">W/m&sup2;</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="label">Avg Efficiency</div>
+      <div class="value" id="kpiEfficiency">--</div>
+      <div class="unit">%</div>
+    </div>
+  </div>
+
+  <!-- Inverter Grid -->
+  <div class="section-title">Inverters</div>
+  <div class="inverter-grid" id="inverterGrid"></div>
+
+  <!-- Bottom Row -->
+  <div class="bottom-row">
+    <div class="panel">
+      <h3>Weather &amp; Environment</h3>
+      <div class="weather-row">
+        <div class="weather-item">
+          <div class="w-val" id="wxIrradiance">--</div>
+          <div class="w-lbl">Irradiance (W/m&sup2;)</div>
+        </div>
+        <div class="weather-item">
+          <div class="w-val" id="wxAmbient">--</div>
+          <div class="w-lbl">Ambient (&deg;C)</div>
+        </div>
+        <div class="weather-item">
+          <div class="w-val" id="wxPanel">--</div>
+          <div class="w-lbl">Panel (&deg;C)</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Power Trend (Live)</h3>
+      <div class="chart-container">
+        <canvas id="powerChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Last updated: <span id="lastUpdated">--</span></span>
+    <a href="http://localhost:3001" target="_blank">Open Grafana Dashboard</a>
+  </div>
+</div>
+
+<script>
+const MAX_POINTS = 20;
+const INVERTER_IDS = ['INV_01','INV_02','INV_03','INV_04','INV_05'];
+const COLORS = ['#00aaff','#00ff88','#ffaa00','#ff5577','#aa77ff'];
+
+// Chart setup
+const ctx = document.getElementById('powerChart').getContext('2d');
+const chartData = {
+  labels: [],
+  datasets: INVERTER_IDS.map((id, i) => ({
+    label: id,
+    data: [],
+    borderColor: COLORS[i],
+    backgroundColor: COLORS[i] + '22',
+    borderWidth: 2,
+    pointRadius: 0,
+    tension: 0.3,
+    fill: false,
+  }))
+};
+const powerChart = new Chart(ctx, {
+  type: 'line',
+  data: chartData,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 300 },
+    scales: {
+      x: { display: true, ticks: { color: '#555', maxTicksLimit: 6 }, grid: { color: '#1e2a4533' } },
+      y: { display: true, ticks: { color: '#555' }, grid: { color: '#1e2a4533' }, title: { display: true, text: 'Watts', color: '#555' } }
+    },
+    plugins: {
+      legend: { labels: { color: '#888', boxWidth: 10, font: { size: 11 } } }
+    }
+  }
+});
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+function getMetricValue(results, label, labelKey) {
+  if (!results) return 0;
+  if (labelKey) {
+    const match = results.find(r => r.metric && r.metric[labelKey] === label);
+    return match ? parseFloat(match.value[1]) : 0;
+  }
+  return results.length > 0 ? parseFloat(results[0].value[1]) : 0;
+}
+
+function renderInverters(data) {
+  const grid = document.getElementById('inverterGrid');
+  grid.innerHTML = '';
+  let hasFault = false;
+
+  INVERTER_IDS.forEach(id => {
+    const power = getMetricValue(data.inverter_power, id, 'inverter');
+    const eff   = getMetricValue(data.inverter_efficiency, id, 'inverter');
+    const temp  = getMetricValue(data.inverter_temperature, id, 'inverter');
+    const st    = getMetricValue(data.inverter_status, id, 'inverter');
+    const isOk  = st >= 1;
+    if (!isOk) hasFault = true;
+    const powerKw = (power / 1000).toFixed(1);
+    const maxPower = 12; // ~12kW max per inverter
+    const pct = Math.min(100, (power / 1000 / maxPower) * 100);
+
+    const card = document.createElement('div');
+    card.className = 'inv-card';
+    card.innerHTML = `
+      <div class="inv-header">
+        <span class="status-dot ${isOk ? 'ok' : 'fault'}"></span>
+        <span class="inv-name">${id.replace('_', '-')}</span>
+      </div>
+      <div class="inv-row"><span class="lbl">Power</span><span class="val">${powerKw} kW</span></div>
+      <div class="inv-row"><span class="lbl">Temp</span><span class="val">${temp.toFixed(1)} &deg;C</span></div>
+      <div class="inv-row"><span class="lbl">Efficiency</span><span class="val">${eff.toFixed(1)}%</span></div>
+      <div class="power-bar"><div class="fill" style="width:${pct}%"></div></div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // Fault banner
+  const banner = document.getElementById('faultBanner');
+  const badge  = document.getElementById('statusBadge');
+  if (hasFault) {
+    banner.classList.add('visible');
+    badge.className = 'status-badge status-fault';
+    badge.textContent = 'FAULT';
+  } else {
+    banner.classList.remove('visible');
+    badge.className = 'status-badge status-online';
+    badge.textContent = 'ONLINE';
+  }
+}
+
+function updateChart(data) {
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  chartData.labels.push(now);
+  if (chartData.labels.length > MAX_POINTS) chartData.labels.shift();
+
+  INVERTER_IDS.forEach((id, i) => {
+    const power = getMetricValue(data.inverter_power, id, 'inverter');
+    chartData.datasets[i].data.push(power);
+    if (chartData.datasets[i].data.length > MAX_POINTS) chartData.datasets[i].data.shift();
+  });
+  powerChart.update();
+}
+
+async function fetchData() {
+  try {
+    const res = await fetch('/api/metrics');
+    const json = await res.json();
+    if (json.status !== 'ok') return;
+    const d = json.data;
+
+    // KPIs
+    const totalPower = getMetricValue(d.farm_total_power);
+    document.getElementById('kpiPower').textContent = (totalPower / 1000).toFixed(1);
+    document.getElementById('kpiEnergy').textContent = getMetricValue(d.daily_energy).toFixed(1);
+    document.getElementById('kpiIrradiance').textContent = getMetricValue(d.irradiance).toFixed(0);
+
+    // Average efficiency
+    if (d.inverter_efficiency && d.inverter_efficiency.length > 0) {
+      const avgEff = d.inverter_efficiency.reduce((s, r) => s + parseFloat(r.value[1]), 0) / d.inverter_efficiency.length;
+      document.getElementById('kpiEfficiency').textContent = avgEff.toFixed(1);
+    }
+
+    // Weather
+    document.getElementById('wxIrradiance').textContent = getMetricValue(d.irradiance).toFixed(0);
+    document.getElementById('wxAmbient').textContent = getMetricValue(d.ambient_temp).toFixed(1);
+    document.getElementById('wxPanel').textContent = getMetricValue(d.panel_temp).toFixed(1);
+
+    // Inverters
+    renderInverters(d);
+
+    // Chart
+    updateChart(d);
+
+    // Last updated
+    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+  } catch (err) {
+    console.error('Fetch error:', err);
+  }
+}
+
+fetchData();
+setInterval(fetchData, 5000);
+</script>
+</body>
+</html>
