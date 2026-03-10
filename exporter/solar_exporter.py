@@ -7,10 +7,25 @@ Metrics vary realistically with time-of-day using sine-wave solar irradiance.
 
 import math
 import random
+import socket
+import threading
 import time
 from datetime import datetime
+from wsgiref.simple_server import WSGIServer, make_server
 
-from prometheus_client import Gauge, start_http_server
+from prometheus_client import Gauge, make_wsgi_app
+
+
+# IPv6-capable server so Fly.io internal networking works
+class _IPv6WSGIServer(WSGIServer):
+    address_family = socket.AF_INET6
+
+def start_http_server(port):
+    app = make_wsgi_app()
+    httpd = make_server('::', port, app, server_class=_IPv6WSGIServer)
+    t = threading.Thread(target=httpd.serve_forever)
+    t.daemon = True
+    t.start()
 
 # --- Metric definitions ---
 
