@@ -5,10 +5,10 @@ const path = require("path");
 
 const app = express();
 const PORT = 3000;
-const PROMETHEUS_URL = "http://prometheus:9090";
+const PROMETHEUS_URL = process.env.PROMETHEUS_URL || "http://prometheus:9090";
 
 app.use(cors());
-app.use(express.static(path.join(__dirname, "../dashboard")));
+app.use(express.static(path.join(__dirname, "dashboard")));
 
 async function queryPrometheus(query) {
   const url = `${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(query)}`;
@@ -131,7 +131,7 @@ app.get("/api/alerts", async (req, res) => {
 
 // Fallback: serve dashboard
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../dashboard/index.html"));
+  res.sendFile(path.join(__dirname, "dashboard/index.html"));
 });
 
 app.listen(PORT, () => {
