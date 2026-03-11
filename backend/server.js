@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
 const path = require("path");
+const { startAlerter } = require("./alerter");
 
 const app = express();
 const PORT = 3000;
@@ -136,4 +137,5 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Solar SCADA API running on port ${PORT}`);
+  startAlerter();
 });
