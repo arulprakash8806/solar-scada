@@ -130,6 +130,63 @@ app.get("/api/alerts", async (req, res) => {
   }
 });
 
+// POST /api/simulate/:scenario — trigger test Telegram alerts
+// Scenarios: fault, recovery, lowpower, summary
+// Optional query param: ?inverter=INV_02
+app.post("/api/simulate/:scenario", async (req, res) => {
+  const { sendTelegram } = require("./alerter");
+  const scenario = req.params.scenario;
+  const inv = req.query.inverter || "INV_01";
+  const timeStr = new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
+  const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" });
+
+  const scenarios = {
+    fault: () => sendTelegram(
+      `🔴 <b>[TEST] INVERTER FAULT</b>\n\n` +
+      `Inverter <b>${inv}</b> has stopped producing power.\n` +
+      `⏰ Time: ${timeStr}\n` +
+      `📍 Dashboard: https://backend-dark-paper-3650.fly.dev\n\n` +
+      `<i>This is a simulated test alert.</i>`
+    ),
+    recovery: () => sendTelegram(
+      `✅ <b>[TEST] INVERTER RECOVERED</b>\n\n` +
+      `Inverter <b>${inv}</b> is back online and producing power.\n` +
+      `⏰ Time: ${timeStr}\n\n` +
+      `<i>This is a simulated test alert.</i>`
+    ),
+    lowpower: () => sendTelegram(
+      `⚠️ <b>[TEST] LOW PRODUCTION WARNING</b>\n\n` +
+      `Farm output is only <b>2.3 kW</b> despite good irradiance (750 W/m²).\n` +
+      `⏰ Time: ${timeStr}\n` +
+      `📍 Dashboard: https://backend-dark-paper-3650.fly.dev\n\n` +
+      `<i>This is a simulated test alert.</i>`
+    ),
+    summary: () => sendTelegram(
+      `☀️ <b>[TEST] Daily Solar Farm Summary</b>\n` +
+      `📅 ${dateStr}\n\n` +
+      `⚡ Energy Generated: <b>142.5 kWh</b>\n` +
+      `🔋 Current Output: <b>47.2 kW</b>\n` +
+      `✅ Active Inverters: <b>5/5</b>\n\n` +
+      `📍 Full report: https://backend-dark-paper-3650.fly.dev\n\n` +
+      `<i>This is a simulated test alert.</i>`
+    ),
+  };
+
+  if (!scenarios[scenario]) {
+    return res.status(400).json({
+      status: "error",
+      message: `Unknown scenario. Valid options: ${Object.keys(scenarios).join(", ")}`,
+    });
+  }
+
+  try {
+    await scenarios[scenario]();
+    res.json({ status: "ok", message: `${scenario} alert sent to Telegram` });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
 // Fallback: serve dashboard
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "dashboard/index.html"));

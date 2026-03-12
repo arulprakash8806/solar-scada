@@ -4,7 +4,9 @@
   "description": "Solar Farm SCADA API Server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node tests/test.js",
+    "test:prod": "node tests/test.js https://backend-dark-paper-3650.fly.dev"
   },
   "dependencies": {
     "express": "^4.18.2",

@@ -190,4 +190,4 @@ function startAlerter() {
   setInterval(runChecks, CHECK_INTERVAL_MS);
 }
 
-module.exports = { startAlerter };
+module.exports = { startAlerter, sendTelegram };
