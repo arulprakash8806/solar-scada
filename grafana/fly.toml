@@ -11,8 +11,8 @@ primary_region = 'bom'
 [env]
   GF_SECURITY_ADMIN_USER = "admin"
   GF_SECURITY_ADMIN_PASSWORD = "solar123"
-  GF_AUTH_ANONYMOUS_ENABLED = "true"
-  GF_AUTH_ANONYMOUS_ORG_ROLE = "Viewer"
+  GF_AUTH_ANONYMOUS_ENABLED = "false"
+  GF_SERVER_ROOT_URL = "https://grafana-lingering-wave-5682.fly.dev"
 
 [http_service]
   internal_port = 3000

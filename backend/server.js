@@ -2,15 +2,70 @@ const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
 const path = require("path");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const { startAlerter } = require("./alerter");
 
 const app = express();
 const PORT = 3000;
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL || "http://prometheus:9090";
+const API_KEY = process.env.API_KEY;
 
-app.use(cors());
+// ── Security middleware ───────────────────────────────────────────────────────
+
+// Helmet: sets secure HTTP headers (XSS, clickjacking, MIME sniffing, etc.)
+app.use(helmet({
+  contentSecurityPolicy: false, // disabled so the dashboard SPA loads fine
+}));
+
+// CORS: only allow requests from our own frontend + localhost for dev
+const allowedOrigins = [
+  "https://backend-dark-paper-3650.fly.dev",
+  "https://grafana-lingering-wave-5682.fly.dev",
+  "http://localhost:3000",
+];
+app.use(cors({
+  origin: (origin, cb) => {
+    // allow requests with no origin (curl, mobile apps, Postman)
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error("CORS: origin not allowed"));
+  },
+}));
+
+// Rate limiter: 100 requests per 15 minutes per IP for general API
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: "error", message: "Too many requests, slow down." },
+});
+
+// Stricter limiter for simulate endpoints: 10 per 15 minutes per IP
+const simulateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: "error", message: "Simulate rate limit exceeded." },
+});
+
+app.use("/api", generalLimiter);
+
+// API key middleware — only enforced if API_KEY env var is set
+function requireApiKey(req, res, next) {
+  if (!API_KEY) return next(); // skip if not configured (backward compat)
+  const key = req.headers["x-api-key"] || req.query.api_key;
+  if (key !== API_KEY) {
+    return res.status(401).json({ status: "error", message: "Invalid or missing API key. Pass X-Api-Key header." });
+  }
+  next();
+}
+
+// ── Static dashboard (no auth needed — it's the UI) ──────────────────────────
 app.use(express.static(path.join(__dirname, "dashboard")));
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 async function queryPrometheus(query) {
   const url = `${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(query)}`;
   const res = await fetch(url);
@@ -21,8 +76,15 @@ async function queryPrometheus(query) {
   return data.data.result;
 }
 
+// ── API Routes (all require API key) ─────────────────────────────────────────
+
+// GET /api/health — public health check (no auth)
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
+});
+
 // GET /api/metrics — all current metrics
-app.get("/api/metrics", async (req, res) => {
+app.get("/api/metrics", requireApiKey, async (req, res) => {
   try {
     const queries = {
       farm_total_power: "solar_farm_total_power_watts",
@@ -56,7 +118,7 @@ app.get("/api/metrics", async (req, res) => {
 });
 
 // GET /api/inverters — per-inverter summary
-app.get("/api/inverters", async (req, res) => {
+app.get("/api/inverters", requireApiKey, async (req, res) => {
   try {
     const [power, efficiency, temperature, status, acVoltage] = await Promise.all([
       queryPrometheus("solar_inverter_output_power_watts"),
@@ -87,7 +149,7 @@ app.get("/api/inverters", async (req, res) => {
 });
 
 // GET /api/farm — farm totals
-app.get("/api/farm", async (req, res) => {
+app.get("/api/farm", requireApiKey, async (req, res) => {
   try {
     const [totalPower, dailyEnergy, irradiance, ambientTemp, panelTemp] =
       await Promise.all([
@@ -116,7 +178,7 @@ app.get("/api/farm", async (req, res) => {
 });
 
 // GET /api/alerts — inverters with faults
-app.get("/api/alerts", async (req, res) => {
+app.get("/api/alerts", requireApiKey, async (req, res) => {
   try {
     const statusResults = await queryPrometheus("solar_inverter_status == 0");
     const faults = statusResults.map((item) => ({
@@ -131,9 +193,8 @@ app.get("/api/alerts", async (req, res) => {
 });
 
 // POST /api/simulate/:scenario — trigger test Telegram alerts
-// Scenarios: fault, recovery, lowpower, summary
-// Optional query param: ?inverter=INV_02
-app.post("/api/simulate/:scenario", async (req, res) => {
+// Requires API key + stricter rate limit
+app.post("/api/simulate/:scenario", simulateLimiter, requireApiKey, async (req, res) => {
   const { sendTelegram } = require("./alerter");
   const scenario = req.params.scenario;
   const inv = req.query.inverter || "INV_01";
@@ -194,5 +255,10 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Solar SCADA API running on port ${PORT}`);
+  if (API_KEY) {
+    console.log("🔐 API key authentication enabled");
+  } else {
+    console.log("⚠️  API_KEY not set — authentication disabled");
+  }
   startAlerter();
 });

@@ -8,8 +8,7 @@ primary_region = 'bom'
 
 [env]
   PROMETHEUS_URL = "http://prometheus-long-frost-4688.internal:9090"
-  TELEGRAM_TOKEN = "8627222075:AAHPDnGIA_pluqP3ZSMJmeXTk8qaDhYRu80"
-  TELEGRAM_CHAT_ID = "8208420361"
+  # TELEGRAM_TOKEN, TELEGRAM_CHAT_ID and API_KEY are stored as Fly secrets (not here)
 
 [http_service]
   internal_port = 3000
