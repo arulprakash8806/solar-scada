@@ -53,8 +53,10 @@ const simulateLimiter = rateLimit({
 app.use("/api", generalLimiter);
 
 // API key middleware — only enforced if API_KEY env var is set
+// GET routes (dashboard data) are read-only and exempt.
+// Only POST routes (simulate) require a key to prevent abuse.
 function requireApiKey(req, res, next) {
-  if (!API_KEY) return next(); // skip if not configured (backward compat)
+  if (!API_KEY) return next();
   const key = req.headers["x-api-key"] || req.query.api_key;
   if (key !== API_KEY) {
     return res.status(401).json({ status: "error", message: "Invalid or missing API key. Pass X-Api-Key header." });
@@ -84,7 +86,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // GET /api/metrics — all current metrics
-app.get("/api/metrics", requireApiKey, async (req, res) => {
+app.get("/api/metrics", async (req, res) => {
   try {
     const queries = {
       farm_total_power: "solar_farm_total_power_watts",
@@ -118,7 +120,7 @@ app.get("/api/metrics", requireApiKey, async (req, res) => {
 });
 
 // GET /api/inverters — per-inverter summary
-app.get("/api/inverters", requireApiKey, async (req, res) => {
+app.get("/api/inverters", async (req, res) => {
   try {
     const [power, efficiency, temperature, status, acVoltage] = await Promise.all([
       queryPrometheus("solar_inverter_output_power_watts"),
@@ -149,7 +151,7 @@ app.get("/api/inverters", requireApiKey, async (req, res) => {
 });
 
 // GET /api/farm — farm totals
-app.get("/api/farm", requireApiKey, async (req, res) => {
+app.get("/api/farm", async (req, res) => {
   try {
     const [totalPower, dailyEnergy, irradiance, ambientTemp, panelTemp] =
       await Promise.all([
@@ -178,7 +180,7 @@ app.get("/api/farm", requireApiKey, async (req, res) => {
 });
 
 // GET /api/alerts — inverters with faults
-app.get("/api/alerts", requireApiKey, async (req, res) => {
+app.get("/api/alerts", async (req, res) => {
   try {
     const statusResults = await queryPrometheus("solar_inverter_status == 0");
     const faults = statusResults.map((item) => ({
