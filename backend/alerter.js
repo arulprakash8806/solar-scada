@@ -12,7 +12,8 @@
  *   - Inverter temperature creep toward overheating
  */
 
-const fetch = require("node-fetch");
+const fetch    = require("node-fetch");
+const reporter = require("./reporter");
 
 const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID  = process.env.TELEGRAM_CHAT_ID;
@@ -139,7 +140,7 @@ async function checkLowProduction() {
   }
 }
 
-async function sendDailySummary() {
+async function sendDailyReport() {
   const now   = new Date();
   const hour  = now.getHours();
   const today = now.getDate();
@@ -147,28 +148,22 @@ async function sendDailySummary() {
   if (lastSummaryDate === today) return;
   lastSummaryDate = today;
 
-  const [energy, totalPower, activeInverters] = await Promise.all([
-    query("solar_farm_daily_energy_kwh"),
-    query("solar_farm_total_power_watts"),
-    query("solar_inverter_status"),
-  ]);
+  try {
+    // Sunday (0) = send weekly report instead of / in addition to daily
+    const isSunday = now.getDay() === 0;
 
-  const energyKwh = val(energy);
-  const powerKw   = (val(totalPower) / 1000).toFixed(1);
-  const active    = activeInverters.filter(r => parseFloat(r.value[1]) === 1).length;
-  const total     = activeInverters.length;
-  const dateStr   = now.toLocaleDateString("en-IN", {
-    timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric"
-  });
+    const { text: dailyText } = await reporter.generateDailyReport();
+    await sendTelegram(dailyText);
 
-  await sendTelegram(
-    `☀️ <b>Daily Solar Farm Summary</b>\n` +
-    `📅 ${dateStr}\n\n` +
-    `⚡ Energy Generated: <b>${energyKwh.toFixed(1)} kWh</b>\n` +
-    `🔋 Current Output: <b>${powerKw} kW</b>\n` +
-    `✅ Active Inverters: <b>${active}/${total}</b>\n\n` +
-    `📍 Full report: https://backend-dark-paper-3650.fly.dev`
-  );
+    if (isSunday) {
+      // Small delay so messages don't arrive at the same second
+      await new Promise(r => setTimeout(r, 3000));
+      const { text: weeklyText } = await reporter.generateWeeklyReport();
+      await sendTelegram(weeklyText);
+    }
+  } catch (err) {
+    console.error("Report generation error:", err.message);
+  }
 }
 
 // ── Predictive checks (every 15 min) ─────────────────────────────
@@ -304,7 +299,7 @@ async function runChecks() {
   try {
     await checkInverterFaults();
     await checkLowProduction();
-    await sendDailySummary();
+    await sendDailyReport();
   } catch (err) {
     console.error("Reactive check error:", err.message);
   }
@@ -338,7 +333,7 @@ function startAlerter() {
     `• ⚠️ Low production warnings\n` +
     `• ✅ Inverter recoveries\n` +
     `• 🔮 Predictive: efficiency drop, power imbalance, temp creep\n` +
-    `• ☀️ Daily energy summary at 7pm\n\n` +
+    `• ☀️ Daily energy report at 7pm (weekly on Sundays)\n\n` +
     `📍 Dashboard: https://backend-dark-paper-3650.fly.dev`
   );
 

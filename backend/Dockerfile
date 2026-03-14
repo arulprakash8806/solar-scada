@@ -4,6 +4,7 @@ COPY package.json .
 RUN npm install --production
 COPY server.js .
 COPY alerter.js .
+COPY reporter.js .
 COPY dashboard ./dashboard
 EXPOSE 3000
 CMD ["node", "server.js"]

@@ -284,6 +284,56 @@ app.post("/api/simulate/:scenario", simulateLimiter, requireApiKey, async (req, 
   }
 });
 
+// ── Energy report endpoints ───────────────────────────────────────────────────
+
+// GET /api/report/daily — generate and return today's daily report as JSON
+app.get("/api/report/daily", async (req, res) => {
+  try {
+    const { generateDailyReport } = require("./reporter");
+    const { text, data } = await generateDailyReport();
+    res.json({ status: "ok", report: text, data });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
+// GET /api/report/weekly — generate and return this week's report as JSON
+app.get("/api/report/weekly", async (req, res) => {
+  try {
+    const { generateWeeklyReport } = require("./reporter");
+    const { text, data } = await generateWeeklyReport();
+    res.json({ status: "ok", report: text, data });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
+// POST /api/report/send/daily — generate and send daily report to Telegram now (API key required)
+app.post("/api/report/send/daily", requireApiKey, async (req, res) => {
+  try {
+    const { generateDailyReport } = require("./reporter");
+    const { sendTelegram }        = require("./alerter");
+    const { text, data }          = await generateDailyReport();
+    await sendTelegram(text);
+    res.json({ status: "ok", message: "Daily report sent to Telegram", data });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
+// POST /api/report/send/weekly — generate and send weekly report to Telegram now (API key required)
+app.post("/api/report/send/weekly", requireApiKey, async (req, res) => {
+  try {
+    const { generateWeeklyReport } = require("./reporter");
+    const { sendTelegram }         = require("./alerter");
+    const { text, data }           = await generateWeeklyReport();
+    await sendTelegram(text);
+    res.json({ status: "ok", message: "Weekly report sent to Telegram", data });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
 // POST /api/predictive/run — manually trigger all predictive checks now (requires API key)
 app.post("/api/predictive/run", requireApiKey, async (req, res) => {
   const { runPredictiveChecks } = require("./alerter");
