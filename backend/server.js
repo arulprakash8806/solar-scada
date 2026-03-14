@@ -233,6 +233,40 @@ app.post("/api/simulate/:scenario", simulateLimiter, requireApiKey, async (req, 
       `📍 Full report: https://backend-dark-paper-3650.fly.dev\n\n` +
       `<i>This is a simulated test alert.</i>`
     ),
+    // ── Predictive alert simulations ──────────────────────────────
+    predict_efficiency: () => sendTelegram(
+      `🔮 <b>[TEST] PREDICTIVE ALERT — Efficiency Degrading</b>\n\n` +
+      `Inverter <b>${inv}</b> efficiency is trending down.\n` +
+      `📉 Current: <b>91.2%</b> → Predicted in 1h: <b>82.4%</b>\n` +
+      `⬇️ Drop rate: ~8.8% per hour\n` +
+      `⏰ Time: ${timeStr}\n\n` +
+      `💡 <i>Action: Check for soiling, shading, or connection issues on ${inv}.</i>\n` +
+      `📍 Dashboard: https://backend-dark-paper-3650.fly.dev\n\n` +
+      `<i>This is a simulated test alert.</i>`
+    ),
+    predict_imbalance: () => sendTelegram(
+      `🔮 <b>[TEST] PREDICTIVE ALERT — Power Imbalance Detected</b>\n\n` +
+      `Inverter <b>${inv}</b> is underperforming vs the fleet.\n` +
+      `📊 ${inv} (30min avg): <b>6.20 kW</b>\n` +
+      `📊 Fleet average: <b>10.85 kW</b>\n` +
+      `⬇️ Deviation: <b>42.8% below peers</b>\n` +
+      `☀️ Irradiance: 880 W/m²\n` +
+      `⏰ Time: ${timeStr}\n\n` +
+      `💡 <i>Action: Check ${inv} for soiling, shading, or string fuse issues.</i>\n` +
+      `📍 Dashboard: https://backend-dark-paper-3650.fly.dev\n\n` +
+      `<i>This is a simulated test alert.</i>`
+    ),
+    predict_temperature: () => sendTelegram(
+      `🔮 <b>[TEST] PREDICTIVE ALERT — Temperature Rising</b>\n\n` +
+      `Inverter <b>${inv}</b> temperature is trending up.\n` +
+      `🌡️ Current: <b>68.5°C</b> → Predicted in 1h: <b>78.2°C</b>\n` +
+      `⬆️ Rise rate: ~9.7°C per hour\n` +
+      `⚠️ Risk: Thermal throttling above 75°C, shutdown above 85°C\n` +
+      `⏰ Time: ${timeStr}\n\n` +
+      `💡 <i>Action: Check ${inv} ventilation and cooling fans.</i>\n` +
+      `📍 Dashboard: https://backend-dark-paper-3650.fly.dev\n\n` +
+      `<i>This is a simulated test alert.</i>`
+    ),
   };
 
   if (!scenarios[scenario]) {
@@ -245,6 +279,17 @@ app.post("/api/simulate/:scenario", simulateLimiter, requireApiKey, async (req, 
   try {
     await scenarios[scenario]();
     res.json({ status: "ok", message: `${scenario} alert sent to Telegram` });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
+// POST /api/predictive/run — manually trigger all predictive checks now (requires API key)
+app.post("/api/predictive/run", requireApiKey, async (req, res) => {
+  const { runPredictiveChecks } = require("./alerter");
+  try {
+    await runPredictiveChecks();
+    res.json({ status: "ok", message: "Predictive checks ran — any triggers sent to Telegram" });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
   }
